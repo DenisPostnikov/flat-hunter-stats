@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Рынок квартир Минска</title>
+<meta name="robots" content="noindex">
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--fg:#16181d;--muted:#6b7280;--line:#e5e7eb;--acc:#2563eb;--acc2:#f59e0b;--acc3:#10b981;
+--up:#dc2626;--down:#059669;--dim:#9ca3af}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#0f1115;--card:#181b21;--fg:#e8eaed;--muted:#9aa0aa;
+--line:#2a2e36;--acc:#60a5fa;--acc2:#fbbf24;--acc3:#34d399;--up:#f87171;--down:#34d399;--dim:#5b6170}}
+:root[data-theme=dark]{--bg:#0f1115;--card:#181b21;--fg:#e8eaed;--muted:#9aa0aa;--line:#2a2e36;--acc:#60a5fa;--acc2:#fbbf24;
+--acc3:#34d399;--up:#f87171;--down:#34d399;--dim:#5b6170}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:20px 16px 48px}
+h1{font-size:22px;margin:0 0 4px}h2{font-size:17px;margin:0 0 12px}
+.sub{color:var(--muted);font-size:13px;margin-bottom:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.kpi .l{color:var(--muted);font-size:12px}.kpi .v{font-size:22px;font-weight:650;margin-top:2px;font-variant-numeric:tabular-nums}
+.kpi .d{font-size:12px;color:var(--muted);margin-top:2px}
+.up{color:var(--up)}.down{color:var(--down)}
+section.card{margin-bottom:16px}
+.chart{position:relative;height:240px}
+.empty{color:var(--muted);font-size:14px;padding:24px 0;text-align:center}
+.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+table{border-collapse:collapse;width:100%;font-size:14px;font-variant-numeric:tabular-nums}
+th,td{padding:7px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th:first-child,td:first-child{text-align:left;white-space:normal;min-width:150px}
+th{font-size:12px;color:var(--muted);font-weight:600;cursor:pointer;user-select:none;position:sticky;top:0;background:var(--card)}
+tr.ex td{color:var(--dim)}tr.ex td:first-child::after{content:" · исключён";font-size:11px}
+.note{color:var(--muted);font-size:12px;margin-top:8px}
+.tabs{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+.tabs button{border:1px solid var(--line);background:transparent;color:var(--fg);border-radius:999px;padding:4px 12px;font-size:13px;cursor:pointer}
+.tabs button.on{background:var(--acc);border-color:var(--acc);color:#fff}
+</style>
+</head>
+<body>
+<main>
+<h1>Рынок 3–4-комнатных квартир, Минск</h1>
+<div class="sub" id="sub"></div>
+<div class="grid" id="kpis"></div>
+
+<section class="card"><h2>Медиана цены за м², $</h2><div class="chart"><canvas id="c1"></canvas></div>
+<div class="note">Цены продавцов в объявлениях Kufar и Realt.by (дубли между сайтами схлопнуты), не цены сделок.</div></section>
+
+<section class="card"><h2>Новые и снятые объявления в день</h2><div class="chart"><canvas id="c2"></canvas></div>
+<div class="note">«Снятые» — продано, снято продавцом или истекло; это верхняя оценка продаж, не число сделок.</div></section>
+
+<section class="card"><h2>Сделки с квартирами в Минске по месяцам (НКА)</h2><div class="chart"><canvas id="c3"></canvas></div>
+<div class="note" id="ncanote"></div></section>
+
+<section class="card"><h2>Микрорайоны</h2>
+<div class="tabs" id="flt"><button data-f="all" class="on">Все</button><button data-f="ok">Без исключённых</button></div>
+<div class="tw"><table id="t"><thead><tr>
+<th data-k="name">Микрорайон</th><th data-k="score">Оценка</th><th data-k="ppm">$/м²</th><th data-k="d30">30 дн.</th>
+<th data-k="price">Медиана цены</th><th data-k="n">Объявл.</th><th data-k="in_budget">≤ $170k</th></tr></thead><tbody></tbody></table></div>
+<div class="note">Нажми на заголовок столбца, чтобы отсортировать. Оценка района — из анализа районов (1–10).</div></section>
+
+<section class="card"><h2>Цена за м² по возрасту дома</h2><div class="tw"><table id="age"><thead><tr>
+<th>Дом</th><th>$/м²</th><th>25–75%</th><th>Объявл.</th></tr></thead><tbody></tbody></table></div></section>
+</main>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const D = {"kpi": {"ppm": 2327, "ppm_w": null, "ppm_m": null, "n": 1954, "new7": null, "removed7": null, "drops7": null, "days_on_market": null, "matched": 505, "matched_price": 140000, "p25": 2018, "p75": 2908}, "table": [{"name": "Центр (Немига, Верхний город, Троицкое, Октябрьская)", "score": 7, "excluded": false, "metro": "Немига", "ppm": 3563, "d30": null, "n": 33, "in_budget": 0, "price": 350620}, {"name": "Романовская Слобода / Юбилейная площадь", "score": 7, "excluded": false, "metro": "Юбилейная площадь", "ppm": 3047, "d30": null, "n": 19, "in_budget": 3, "price": 233095}, {"name": "Переспа / Сторожовка", "score": 7, "excluded": false, "metro": "Немига", "ppm": 2814, "d30": null, "n": 17, "in_budget": 1, "price": 303823}, {"name": "Людамонт / Кальварийская", "score": 6, "excluded": false, "metro": "Фрунзенская", "ppm": 2856, "d30": null, "n": 66, "in_budget": 4, "price": 294500}, {"name": "Комаровка / Площадь Якуба Коласа", "score": 8, "excluded": false, "metro": "Площадь Якуба Коласа", "ppm": 2289, "d30": null, "n": 21, "in_budget": 13, "price": 159900}, {"name": "Золотая Горка / Осмоловка", "score": 7, "excluded": false, "metro": "Площадь Победы", "ppm": 3162, "d30": null, "n": 52, "in_budget": 3, "price": 261902}, {"name": "Сельхозпосёлок / Академия наук (север)", "score": 7, "excluded": false, "metro": "Академия наук", "ppm": 2232, "d30": null, "n": 57, "in_budget": 13, "price": 242174}, {"name": "Зелёный Луг", "score": 6, "excluded": false, "metro": "Московская", "ppm": 2044, "d30": null, "n": 42, "in_budget": 24, "price": 148698}, {"name": "Северный берег / Дрозды (Дана)", "score": 6, "excluded": false, "metro": "Академия наук", "ppm": 2575, "d30": null, "n": 54, "in_budget": 9, "price": 215477}, {"name": "Восток / Московская", "score": 8, "excluded": false, "metro": "Восток", "ppm": 2107, "d30": null, "n": 17, "in_budget": 11, "price": 160000}, {"name": "Большая Слепянка / Маяк Минска / Восток-2", "score": 6, "excluded": false, "metro": "Восток", "ppm": 2905, "d30": null, "n": 46, "in_budget": 4, "price": 280030}, {"name": "Уручье", "score": 7, "excluded": false, "metro": "Уручье", "ppm": 2177, "d30": null, "n": 90, "in_budget": 41, "price": 181000}, {"name": "Новая Боровая", "score": 5, "excluded": false, "metro": "Борисовский тракт", "ppm": null, "d30": null, "n": null, "in_budget": null, "price": null}, {"name": "Степянка / Ангарская / Малое Стиклево", "score": 4, "excluded": true, "metro": "Автозаводская", "ppm": 1931, "d30": null, "n": 29, "in_budget": 25, "price": 127012}, {"name": "Слепянка / Тракторозаводской посёлок / Долгий Брод", "score": 5, "excluded": false, "metro": "Тракторный завод", "ppm": 2120, "d30": null, "n": 15, "in_budget": 9, "price": 164000}, {"name": "Захарова–Пулихова / Посёлок Велозавода / Ляховка", "score": 6, "excluded": false, "metro": "Пролетарская", "ppm": 2621, "d30": null, "n": 26, "in_budget": 7, "price": 272500}, {"name": "Автозаводской посёлок / Партизанская", "score": 4, "excluded": true, "metro": "Автозаводская", "ppm": 2121, "d30": null, "n": 9, "in_budget": 5, "price": 165829}, {"name": "Серебрянка", "score": 6, "excluded": false, "metro": "Партизанская", "ppm": 1984, "d30": null, "n": 33, "in_budget": 24, "price": 134061}, {"name": "Чижовка", "score": 5, "excluded": false, "metro": "Автозаводская", "ppm": 1953, "d30": null, "n": 21, "in_budget": 20, "price": 119557}, {"name": "Шабаны", "score": 2, "excluded": true, "metro": "Могилёвская", "ppm": 1659, "d30": null, "n": 4, "in_budget": 4, "price": 121057}, {"name": "Лошица", "score": 6, "excluded": false, "metro": "Неморшанский Сад", "ppm": 2052, "d30": null, "n": 17, "in_budget": 12, "price": 160000}, {"name": "Серова / Неморшанский сад", "score": 5, "excluded": false, "metro": "Неморшанский Сад", "ppm": 2066, "d30": null, "n": 13, "in_budget": 13, "price": 135000}, {"name": "Козырево / Серебрянские Мельницы", "score": 5, "excluded": false, "metro": "Аэродромная", "ppm": 2225, "d30": null, "n": 29, "in_budget": 16, "price": 162669}, {"name": "Чкаловский / Ковальская Слобода", "score": 6, "excluded": false, "metro": "Ковальская Слобода", "ppm": 2352, "d30": null, "n": 42, "in_budget": 20, "price": 166671}, {"name": "Минск-Мир", "score": 4, "excluded": true, "metro": "Аэродромная", "ppm": 2568, "d30": null, "n": 294, "in_budget": 165, "price": 164532}, {"name": "Казинца / Брилевская / Кижеватова", "score": 4, "excluded": true, "metro": "Неморшанский Сад", "ppm": 1775, "d30": null, "n": 8, "in_budget": 8, "price": 114650}, {"name": "Курасовщина", "score": 5, "excluded": true, "metro": "Неморшанский Сад", "ppm": 1999, "d30": null, "n": 5, "in_budget": 3, "price": 163002}, {"name": "Грушевка / Михалово (восток)", "score": 7, "excluded": false, "metro": "Грушевка", "ppm": 2796, "d30": null, "n": 51, "in_budget": 5, "price": 213898}, {"name": "Петровщина / Михалово", "score": 7, "excluded": false, "metro": "Михалово", "ppm": 2509, "d30": null, "n": 24, "in_budget": 4, "price": 196635}, {"name": "Юго-Запад", "score": 6, "excluded": false, "metro": "Петровщина", "ppm": 1987, "d30": null, "n": 13, "in_budget": 12, "price": 135724}, {"name": "Малиновка", "score": 6, "excluded": false, "metro": "Малиновка", "ppm": 1975, "d30": null, "n": 43, "in_budget": 37, "price": 139383}, {"name": "Брилевичи / Дружба", "score": 6, "excluded": false, "metro": "Малиновка", "ppm": 2335, "d30": null, "n": 30, "in_budget": 2, "price": 205748}, {"name": "Сухарево", "score": 5, "excluded": false, "metro": "Каменная Горка", "ppm": 1981, "d30": null, "n": 62, "in_budget": 41, "price": 159000}, {"name": "Кунцевщина / Запад", "score": 5, "excluded": true, "metro": "Кунцевщина", "ppm": 2121, "d30": null, "n": 36, "in_budget": 26, "price": 148016}, {"name": "Каменная Горка / Красный Бор", "score": 5, "excluded": true, "metro": "Каменная Горка", "ppm": 2010, "d30": null, "n": 36, "in_budget": 18, "price": 170500}, {"name": "Домбровка / Масюковщина", "score": 5, "excluded": false, "metro": "Кунцевщина", "ppm": 1936, "d30": null, "n": 29, "in_budget": 18, "price": 150000}, {"name": "Ржавец / Веснинка / Олимпик Парк", "score": 6, "excluded": false, "metro": "Спортивная", "ppm": 3306, "d30": null, "n": 87, "in_budget": 2, "price": 312000}, {"name": "Веснянка / Веселовка", "score": 7, "excluded": false, "metro": "Пушкинская", "ppm": 2302, "d30": null, "n": 27, "in_budget": 17, "price": 158677}, {"name": "Пушкинская / Харьковская / Кальвария", "score": 6, "excluded": false, "metro": "Пушкинская", "ppm": 2141, "d30": null, "n": 45, "in_budget": 33, "price": 143708}, {"name": "Раковское шоссе / Спортивная / Молодёжная", "score": 6, "excluded": false, "metro": "Спортивная", "ppm": 2108, "d30": null, "n": 39, "in_budget": 33, "price": 131399}, {"name": "Калиновского / Мележа / Ботанический сад (север)", "score": 7, "excluded": false, "metro": "Парк Челюскинцев", "ppm": 2419, "d30": null, "n": 49, "in_budget": 12, "price": 216560}, {"name": "Филимонова / Столетова / Запорожская (Слепянка-север)", "score": 7, "excluded": false, "metro": "Парк Челюскинцев", "ppm": 3153, "d30": null, "n": 46, "in_budget": 2, "price": 266787}, {"name": "Проспект Победителей / Старовиленский тракт / Комсомольское озеро", "score": 7, "excluded": false, "metro": "Фрунзенская", "ppm": 2846, "d30": null, "n": 47, "in_budget": 6, "price": 267789}], "series": {"dates": ["2026-11-27"], "city": [2327], "r3": [2366], "r4": [2160], "new": [null], "removed": [null], "age": {"до 1990": {"n": 571, "ppm": 2121, "ppm_p25": 1926, "ppm_p75": 2444, "price": 142955}, "1990–2010": {"n": 493, "ppm": 2130, "ppm_p25": 1930, "ppm_p75": 2425, "price": 193000}, "после 2010": {"n": 869, "ppm": 2768, "ppm_p25": 2271, "ppm_p75": 3217, "price": 215000}}}, "nca": {"note": "Сделки купли-продажи квартир в Минске по данным НКА (реестр цен), из публикаций. Пропущенные месяцы — нет данных.", "sources": ["https://myfin.by/article/rynki/skolko-kvartir-prodali-v-minske-i-oblastnyh-centrah-v-iune-svezie-dannye-46665", "https://devby.io/ru/news/kvartiry-v-minske-podorozhali-na-27-hotya-sdelok-menshe"], "months": {"2026-01": 729, "2026-02": 1057, "2026-03": 1049, "2026-06": 1077}}, "updated": "2026-11-27", "days": 1};
+const $ = s => document.querySelector(s);
+const fmt = v => v == null ? "—" : Math.round(v).toLocaleString("ru-RU");
+const usd = v => v == null ? "—" : "$" + fmt(v);
+const pct = v => v == null ? "" : `<span class="${v > 0 ? "up" : v < 0 ? "down" : ""}">${v > 0 ? "+" : ""}${v}%</span>`;
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+$("#sub").textContent = D.updated
+  ? `Обновлено ${new Date(D.updated).toLocaleDateString("ru-RU")} · история: ${D.days} дн.`
+  : "Данных пока нет — появятся после первого прогона.";
+
+const k = D.kpi;
+const tiles = [
+  ["Медиана $/м²", usd(k.ppm), [k.ppm_w != null ? "7 дн. " + pct(k.ppm_w) : "", k.ppm_m != null ? "30 дн. " + pct(k.ppm_m) : ""].filter(Boolean).join(" · ") || (k.p25 ? `25–75%: ${fmt(k.p25)}–${fmt(k.p75)}` : "")],
+  ["Объявлений", fmt(k.n), "3–4к, уникальных"],
+  ["Новых за 7 дн.", fmt(k.new7), ""],
+  ["Снято за 7 дн.", fmt(k.removed7), k.days_on_market != null ? `висели ~${k.days_on_market} дн.` : ""],
+  ["Снижений цены, 7 дн.", fmt(k.drops7), ""],
+  ["Под мои критерии", fmt(k.matched), k.matched_price ? "медиана " + usd(k.matched_price) : ""],
+];
+$("#kpis").innerHTML = tiles.map(([l, v, d]) => `<div class="card kpi"><div class="l">${l}</div><div class="v">${v}</div><div class="d">${d || "&nbsp;"}</div></div>`).join("");
+
+function chart(id, cfg, hasData) {
+  const el = document.getElementById(id);
+  if (!hasData || !window.Chart) { el.parentNode.innerHTML = `<div class="empty">${window.Chart ? "Пока мало данных — график наполнится за несколько дней." : "Не удалось загрузить библиотеку графиков."}</div>`; return; }
+  Chart.defaults.color = css("--muted"); Chart.defaults.borderColor = css("--line");
+  Chart.defaults.font.family = getComputedStyle(document.body).fontFamily;
+  new Chart(el, cfg);
+}
+const S = D.series;
+const lineOpts = {responsive: true, maintainAspectRatio: false, interaction: {mode: "index", intersect: false},
+  plugins: {legend: {position: "bottom", labels: {boxWidth: 12}}}, scales: {x: {grid: {display: false}}}};
+chart("c1", {type: "line", data: {labels: S.dates, datasets: [
+  {label: "Минск", data: S.city, borderColor: css("--acc"), backgroundColor: css("--acc"), tension: .3, pointRadius: S.dates.length < 15 ? 3 : 0},
+  {label: "3к", data: S.r3, borderColor: css("--acc3"), backgroundColor: css("--acc3"), tension: .3, pointRadius: S.dates.length < 15 ? 3 : 0, borderDash: [4, 3]},
+  {label: "4к", data: S.r4, borderColor: css("--acc2"), backgroundColor: css("--acc2"), tension: .3, pointRadius: S.dates.length < 15 ? 3 : 0, borderDash: [4, 3]}]},
+  options: lineOpts}, S.dates.length > 0);
+chart("c2", {type: "bar", data: {labels: S.dates, datasets: [
+  {label: "Новые", data: S.new, backgroundColor: css("--acc")},
+  {label: "Снятые", data: S.removed, backgroundColor: css("--acc2")}]},
+  options: lineOpts}, S.new.some(v => v != null));
+const nm = Object.entries(D.nca.months || {}).sort();
+$("#ncanote").textContent = (D.nca.note || "") + (nm.length ? "" : "");
+chart("c3", {type: "bar", data: {labels: nm.map(([m]) => new Date(m + "-01").toLocaleDateString("ru-RU", {month: "short", year: "numeric"})),
+  datasets: [{label: "Сделок", data: nm.map(([, v]) => v), backgroundColor: css("--acc3")}]},
+  options: {...lineOpts, plugins: {legend: {display: false}}}}, nm.length > 0);
+
+let sortK = "score", sortDir = -1, filt = "all";
+function renderTable() {
+  const rows = D.table.filter(r => filt === "all" || !r.excluded).slice().sort((a, b) => {
+    const x = a[sortK], y = b[sortK];
+    if (x == null) return 1; if (y == null) return -1;
+    return (typeof x === "string" ? x.localeCompare(y, "ru") : x - y) * sortDir;
+  });
+  $("#t tbody").innerHTML = rows.map(r => `<tr class="${r.excluded ? "ex" : ""}"><td>${r.name}</td><td>${r.score ?? "—"}</td>
+    <td>${fmt(r.ppm)}</td><td>${pct(r.d30) || "—"}</td><td>${usd(r.price)}</td><td>${fmt(r.n)}</td><td>${fmt(r.in_budget)}</td></tr>`).join("");
+}
+document.querySelectorAll("#t th").forEach(th => th.onclick = () => {
+  const key = th.dataset.k; sortDir = sortK === key ? -sortDir : (key === "name" ? 1 : -1); sortK = key; renderTable();
+});
+document.querySelectorAll("#flt button").forEach(b => b.onclick = () => {
+  filt = b.dataset.f; document.querySelectorAll("#flt button").forEach(x => x.classList.toggle("on", x === b)); renderTable();
+});
+renderTable();
+$("#age tbody").innerHTML = Object.entries(S.age).map(([a, v]) =>
+  `<tr><td>${a}</td><td>${fmt(v.ppm)}</td><td>${v.ppm_p25 ? fmt(v.ppm_p25) + "–" + fmt(v.ppm_p75) : "—"}</td><td>${fmt(v.n)}</td></tr>`).join("");
+</script>
+</body>
+</html>
